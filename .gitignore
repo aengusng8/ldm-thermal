@@ -20,8 +20,9 @@ dist/
 # Other
 *.DS_Store
 
-# Consistancy Model (Song et al., ICML'23)
-cm/
+# taming transformers
+src/
+taming/
 
 # logging
 wandb/
