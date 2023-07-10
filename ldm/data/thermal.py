@@ -99,6 +99,8 @@ def get_image_resolution_from_dir(image_dir):
     plt.ylabel("Frequency")
 
     dataset_name = os.path.basename(image_dir)
+    if not os.path.exists("statistics"):
+        os.makedirs("statistics")
     plt.savefig(f"statistics/{dataset_name}.png")
     # save resolutions to txt file
     with open(f"statistics/{dataset_name}.txt", "w") as f:
