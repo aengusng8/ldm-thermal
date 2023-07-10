@@ -26,6 +26,7 @@ taming/
 
 # logging
 wandb/
+logs/
 
 # experiments
 experiments/
