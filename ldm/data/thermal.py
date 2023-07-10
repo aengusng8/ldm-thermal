@@ -1,6 +1,7 @@
 import os, yaml, pickle, shutil, tarfile, glob, pandas as pd
 import cv2
 import albumentations
+import matplotlib.pyplot as plt
 import PIL
 import numpy as np
 import torchvision.transforms.functional as TF
@@ -64,3 +65,52 @@ class ThermalTrain(ThermalBase):
 class ThermalValidation(ThermalBase):
     def __init__(self, **kwargs):
         super().__init__(csv_file="data/thermal/val.csv", **kwargs)
+
+
+def get_image_resolution_from_dir(image_dir):
+    """
+    Get all resolution of all images in the directory
+    """
+
+    # recursively get all images
+    image_paths = glob.glob(os.path.join(image_dir, "**/*.png"), recursive=True)
+    widths = []
+    heights = []
+
+    for image_path in tqdm(image_paths):
+        image = Image.open(image_path)
+        widths.append(image.size[0])
+        heights.append(image.size[1])
+
+    print("Total images: ", len(widths))
+    assert len(widths) > 0
+
+    resolutions = {
+        "max": (max(widths), max(heights)),
+        "min": (min(widths), min(heights)),
+        "mean": (np.mean(widths), np.mean(heights)),
+        "std": (np.std(widths), np.std(heights)),
+    }
+    print(resolutions)
+
+    plt.hist(widths, bins=100, alpha=0.5, label="width")
+    plt.hist(heights, bins=100, alpha=0.5, label="height")
+    plt.xlabel("Resolution")
+    plt.ylabel("Frequency")
+
+    dataset_name = os.path.basename(image_dir)
+    plt.savefig(f"statistics/{dataset_name}.png")
+    # save resolutions to txt file
+    with open(f"statistics/{dataset_name}.txt", "w") as f:
+        f.write(str(resolutions))
+
+
+def create_csv():
+    pass
+
+
+if __name__ == "__main__":
+    import sys
+
+    get_image_resolution_from_dir(sys.argv[1])
+    # python ldm/data/thermal.py /Users/ducanhnguyen/Downloads/VAIS
