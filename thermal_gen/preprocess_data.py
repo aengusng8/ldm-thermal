@@ -113,33 +113,48 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
     """
     df = pd.read_csv(csv_path)
 
-    # split by key_to_split
     train_df = pd.DataFrame(columns=df.columns)
     val_df = pd.DataFrame(columns=df.columns)
 
-    print("splitting by key_to_split: ", df["key_to_split"].unique())
-    for key in df["key_to_split"].unique():
-        df_key = df[df["key_to_split"] == key]
-        n_head = int(len(df_key) * train_ratio)
-        n_tail = len(df_key) - n_head
+    # only use a subset of "real" to validate
+    real_df = df[df["img_type"] == "real"]
+    print("real images: ", len(real_df))
+    n_head = int(len(real_df) * train_ratio)
+    n_tail = len(real_df) - n_head
+    train_df = pd.concat([train_df, real_df.head(n_head)])
+    val_df = pd.concat([val_df, real_df.tail(n_tail)])
 
-        train_df = pd.concat([train_df, df_key.head(n_head)])
-        val_df = pd.concat([val_df, df_key.tail(n_tail)])
+    # use other images, and a subset of "real" to train
+    df_key = df[df["img_type"] != "real"]
+    train_df = pd.concat([train_df, df_key])
 
     print("total images: ", len(df))
-    print("train images: ", len(train_df), "(%.3f)" % (len(train_df) / len(df)))
-    print("val images: ", len(val_df), "(%.3f)" % (len(val_df) / len(df)))
-
-    train_df.to_csv(os.path.join(os.path.dirname(csv_path), "train.csv"), index=False)
+    print(
+        f"--> val images: {len(val_df)} ({(round(len(val_df) / len(real_df) * 100))}%)"
+    )
     val_df.to_csv(os.path.join(os.path.dirname(csv_path), "val.csv"), index=False)
 
+    # upsample the real images
+    def upsample_real(train_df):
+        print("--> train images before upsampling: ", len(train_df))
+        # 1. calculate the ratio between real and sim images
+        sim_real_ratio = len(train_df[train_df["img_type"] == "sim"]) / len(
+            train_df[train_df["img_type"] == "real"]
+        )
+        print("sim_real_ratio: ", round(sim_real_ratio, 3))
+        # 2. upsample the real images
+        real_df = train_df[train_df["img_type"] == "real"]
+        real_df = pd.concat([real_df] * int(sim_real_ratio))
+        train_df = pd.concat([train_df, real_df])
+        # 3. shuffle
+        train_df = train_df.sample(frac=1).reset_index(drop=True)
+        return train_df
 
-# def preprocess_image(csv_path):
-#     def offline_augment(type, cfg=None):
-#         # just convert to gray image
-#         return albumentations.Compose([albumentations.ToGray(p=1.0)], p=1.0)
+    train_df = upsample_real(train_df)
+    print("--> train images after upsampling: ", len(train_df))
+    train_df.to_csv(os.path.join(os.path.dirname(csv_path), "train.csv"), index=False)
 
 
 if __name__ == "__main__":
-    create_csv()
+    # create_csv()
     preprocess_csv()
