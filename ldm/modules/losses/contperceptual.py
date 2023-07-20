@@ -8,6 +8,7 @@ class LPIPSWithDiscriminator(nn.Module):
     def __init__(
         self,
         disc_start,
+        is_gray=False,
         logvar_init=0.0,
         kl_weight=1.0,
         pixelloss_weight=1.0,
@@ -22,6 +23,7 @@ class LPIPSWithDiscriminator(nn.Module):
     ):
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
+        self.is_gray = is_gray
         self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
         self.perceptual_loss = LPIPS().eval()
@@ -69,6 +71,10 @@ class LPIPSWithDiscriminator(nn.Module):
     ):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
         if self.perceptual_weight > 0:
+            if self.is_gray:
+                inputs = inputs.repeat(1, 3, 1, 1)
+                reconstructions = reconstructions.repeat(1, 3, 1, 1)
+            
             p_loss = self.perceptual_loss(
                 inputs.contiguous(), reconstructions.contiguous()
             )
