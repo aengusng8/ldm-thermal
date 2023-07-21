@@ -1,6 +1,6 @@
-import os, yaml, pickle, shutil, tarfile, glob, pandas as pd
+import os, yaml, pickle, shutil, tarfile, glob, sys, pandas as pd
 import cv2
-import albumentations
+import albumentations as A
 import matplotlib.pyplot as plt
 import PIL
 import numpy as np
@@ -14,105 +14,73 @@ from torchvision import transforms
 
 
 class ThermalBase(Dataset):
+    """
+    Pytorch Dataset for thermal generation
+    """
+
     def __init__(
-        self, csv_file, data_root, size=None, interpolation="bicubic", flip_p=0.5
+        self, csv_file, data_root, size=128, interpolation="bicubic", flip_p=0.5
     ):
         """
         csv file format:
-        relative_file_path, class_id, class_name
+        relative_file_path, img_type, class_id, class_name, ...
         """
-        self.df = pd.read_csv(csv_file, header=None)
+        self.df = pd.read_csv(os.path.join(data_root, csv_file))
         self.data_root = data_root
 
         self.size = size
         self.interpolation = {
-            "linear": PIL.Image.LINEAR,
             "bilinear": PIL.Image.BILINEAR,
             "bicubic": PIL.Image.BICUBIC,
             "lanczos": PIL.Image.LANCZOS,
         }[interpolation]
+
         self.flip = transforms.RandomHorizontalFlip(p=flip_p)
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, i):
-        relative_file_path, class_id, class_name = self.df.iloc[i]
+        relative_file_path, img_type, class_id, class_name = self.df.iloc[i][:4]
         example = dict(
             class_id=class_id,
             class_name=class_name,
+            img_type=img_type,
         )
 
-        image = Image.open(os.path.join(self.data_root, relative_file_path))
-        if not image.mode == "RGB":
-            print("convert to RGB")
-            image = image.convert("RGB")
+        img = Image.open(os.path.join(self.data_root, relative_file_path))
 
-        # TODO: try random/center crop and Karras augmentations
-        image = image.resize((self.size, self.size), resample=self.interpolation)
+        # image = self.online_augment(image=image)["image"]
+        img = self.normal_augment(img, type=img_type)
+        example["image"] = img
 
-        image = self.flip(image)
-        image = np.array(image).astype(np.uint8)
-        example["image"] = (image / 127.5 - 1.0).astype(np.float32)
         return example
+
+    def normal_augment(self, img, type):
+        # TODO: try random/center crop and Karras augmentations
+        img = img.convert("L")  # to gray scale
+        img = img.resize((self.size, self.size), resample=self.interpolation)
+
+        img = self.flip(img)
+        img = np.array(img).astype(np.uint8)
+        img = (img / 127.5 - 1.0).astype(np.float32)
+        return img
 
 
 class ThermalTrain(ThermalBase):
     def __init__(self, **kwargs):
-        super().__init__(csv_file="data/thermal/train.csv", **kwargs)
+        super().__init__(csv_file="train.csv", **kwargs)
 
 
 class ThermalValidation(ThermalBase):
     def __init__(self, **kwargs):
-        super().__init__(csv_file="data/thermal/val.csv", **kwargs)
-
-
-def get_image_resolution_from_dir(image_dir):
-    """
-    Get all resolution of all images in the directory
-    """
-
-    # recursively get all images
-    image_paths = glob.glob(os.path.join(image_dir, "**/*.png"), recursive=True)
-    widths = []
-    heights = []
-
-    for image_path in tqdm(image_paths):
-        image = Image.open(image_path)
-        widths.append(image.size[0])
-        heights.append(image.size[1])
-
-    print("Total images: ", len(widths))
-    assert len(widths) > 0
-
-    resolutions = {
-        "max": (max(widths), max(heights)),
-        "min": (min(widths), min(heights)),
-        "mean": (np.mean(widths), np.mean(heights)),
-        "std": (np.std(widths), np.std(heights)),
-    }
-    print(resolutions)
-
-    plt.hist(widths, bins=100, alpha=0.5, label="width")
-    plt.hist(heights, bins=100, alpha=0.5, label="height")
-    plt.xlabel("Resolution")
-    plt.ylabel("Frequency")
-
-    dataset_name = os.path.basename(image_dir)
-    if not os.path.exists("statistics"):
-        os.makedirs("statistics")
-    plt.savefig(f"statistics/{dataset_name}.png")
-    # save resolutions to txt file
-    with open(f"statistics/{dataset_name}.txt", "w") as f:
-        f.write(str(resolutions))
-
-
-def create_csv():
-    pass
+        super().__init__(csv_file="val.csv", **kwargs)
 
 
 if __name__ == "__main__":
-    import sys
+    # get_image_resolution_from_dir(sys.argv[1])
 
-    get_image_resolution_from_dir(sys.argv[1])
-    # python ldm/data/thermal.py /Users/ducanhnguyen/Downloads/VAIS
+    data = ThermalTrain(
+        data_root="/Users/ducanhnguyen/Desktop/deep_learning_projects/datasets/ThermalGen_ds",
+    )
+    print(type(data[0]["image"]))
