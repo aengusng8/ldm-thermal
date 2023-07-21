@@ -203,6 +203,7 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
         scale = n_real * int(
             (must_real_ratio - current_real_ratio) / current_real_ratio
         )
+        scale = max(2, scale)
         print("   + scale: ", scale)
         # 2. upsample the real images
         real_df = train_df[train_df["img_type"] == "real"]
