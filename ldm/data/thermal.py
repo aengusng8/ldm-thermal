@@ -69,7 +69,11 @@ class ThermalBase(Dataset):
             # randomly sample a sim by sub_class
             relative_path = self.sim_dict[sub_class].sample(1)["relative_path"].values[0]
 
-        img = Image.open(os.path.join(self.data_root, relative_path))
+        try:
+            img = Image.open(os.path.join(self.data_root, relative_path))
+        except:
+            print("Error opening image: ", relative_path)
+            return self.__getitem__(i + 1)
         # image = self.online_augment(image=image)["image"]
         img = self.normal_augment(img, type=img_type)
         example["image"] = img
