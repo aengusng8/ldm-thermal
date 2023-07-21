@@ -194,22 +194,35 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
     print("    + train images before upsampling: ", len(train_df))
 
     # upsample the real images
-    def upsample_real(train_df):
-        # 1. calculate the ratio between real and sim images
-        sim_real_ratio = len(train_df[train_df["img_type"] == "sim"]) / len(
-            train_df[train_df["img_type"] == "real"]
+    def upsample_real(train_df, must_real_ratio=0.8):
+        print("upsampling real images...")
+        # 1. calculate the ratio between real and the whole dataset
+        n_real = len(train_df[train_df["img_type"] == "real"])
+        current_real_ratio = n_real / len(train_df)
+        print("   + current 'real' ratio: ", round(current_real_ratio * 100, 3), "%")
+        scale = n_real * int(
+            (must_real_ratio - current_real_ratio) / current_real_ratio
         )
-        print("sim_real_ratio: ", round(sim_real_ratio, 3))
+        print("   + scale: ", scale)
         # 2. upsample the real images
         real_df = train_df[train_df["img_type"] == "real"]
-        real_df = pd.concat([real_df] * int(sim_real_ratio))
+        real_df = pd.concat([real_df] * scale)
         train_df = pd.concat([train_df, real_df])
         # 3. shuffle
         train_df = train_df.sample(frac=1).reset_index(drop=True)
-        print("--> train images after upsampling: ", len(train_df))
+        n_real = len(train_df[train_df["img_type"] == "real"])
+        print("after upsampling:")
+        print("   + real images: ", n_real)
+        print("   + train images  ", len(train_df))
+        print(
+            "   + current 'real' ratio: ",
+            round(n_real / len(train_df) * 100, 3),
+            "%",
+        )
+        print
         return train_df
 
-    # train_df = upsample_real(train_df)
+    train_df = upsample_real(train_df, must_real_ratio=0.7)
 
     train_df.to_csv(os.path.join(os.path.dirname(csv_path), "train.csv"), index=False)
 
