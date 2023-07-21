@@ -55,7 +55,7 @@ def get_image_resolution_from_dir(image_dir):
 
 def create_csv(
     data_root="../datasets/ThermalGen_ds",
-    img_type_folders=dict(RGB_v2="rgb", Simulation_v2="sim", ThermalReal="real"),
+    img_type_folders=dict(RGB_v2="rgb", ThermalReal="real"),
     class_folders=dict(Civilian="civilian", Military="military"),
     class_mapping=dict(civilian=0, military=1),
 ):
@@ -65,13 +65,12 @@ def create_csv(
     2. training CSV
 
     With format like:
-    relative_file_path, img_type, class_id, class_name
+    relative_path, img_type, class_id, class_name
     """
-    df = pd.DataFrame(
-        columns=["relative_file_path", "img_type", "class_id", "class_name"]
-    )
+    print("creating csv file...")
+    df = pd.DataFrame(columns=["relative_path", "img_type", "class_id", "class_name"])
     assert os.path.exists(data_root)
-    # create raw CSV
+    # 1. Real images + RGB images
     for img_type_folder, img_type in img_type_folders.items():
         for class_folder, class_name in class_folders.items():
             assert os.path.exists(
@@ -85,7 +84,7 @@ def create_csv(
             # get relative path
             files = [os.path.relpath(file, data_root) for file in files]
             class_id = class_mapping[class_name]
-            key_to_split = f"{class_id}_{img_type}"
+            # key_to_split = f"{class_id}_{img_type}"
 
             # concatenate to df
             df = pd.concat(
@@ -93,24 +92,82 @@ def create_csv(
                     df,
                     pd.DataFrame(
                         {
-                            "relative_file_path": files,
+                            "relative_path": files,
                             "img_type": img_type,
                             "class_id": class_id,
                             "class_name": class_name,
-                            "key_to_split": key_to_split,
+                            "is_img": 1,
+                            # "key_to_split": key_to_split,
                         }
                     ),
                 ]
             )
+
+    # 2. Simulated images: add sub-classes to raw CSV, and images to sim CSV
+    sim_folder = "Simulation_v2"
+    sim_df = pd.DataFrame(columns=list(df.columns) + ["sub_class"])
+
+    for class_folder, class_name in class_folders.items():
+        assert os.path.exists(os.path.join(data_root, sim_folder, class_folder))
+        sub_classes = glob.glob(os.path.join(data_root, sim_folder, class_folder, "*"))
+        sub_classes = [os.path.basename(sub_class) for sub_class in sub_classes]
+        class_id = class_mapping[class_name]
+
+        # add sub-folders to df
+        df = pd.concat(
+            [
+                df,
+                pd.DataFrame(
+                    {
+                        "relative_path": sub_classes,
+                        "img_type": "sim",
+                        "class_id": class_id,
+                        "class_name": class_name,
+                        "is_img": 0,
+                    }
+                ),
+            ]
+        )
+
+        # get all files in the folder (recursive) regardless of the extension
+        files = glob.glob(os.path.join(data_root, sim_folder, class_folder, "**/*.*"))
+        # get relative path
+        files = [os.path.relpath(file, data_root) for file in files]
+        sub_classes = [files.split("/")[-2] for files in files]
+        class_id = class_mapping[class_name]
+
+        # concatenate to sim_df
+        sim_df = pd.concat(
+            [
+                sim_df,
+                pd.DataFrame(
+                    {
+                        "relative_path": files,
+                        "img_type": "sim",
+                        "class_id": class_id,
+                        "class_name": class_name,
+                        "is_img": 1,
+                        "sub_class": sub_classes,
+                    }
+                ),
+            ]
+        )
+
     # save raw CSV
-    print("we have ", len(df), " images")
+    print("we have ", len(df), " images in a epoch for train and val")
+    print("    + real: ", len(df[df["img_type"] == "real"]))
+    print("    + rgb: ", len(df[df["img_type"] == "rgb"]))
+    print("    + sim (sub-classes): ", len(df[df["img_type"] == "sim"]))
+    print("and sim (images): ", len(sim_df))
     df.to_csv(os.path.join(data_root, "raw.csv"), index=False)
+    sim_df.to_csv(os.path.join(data_root, "sim.csv"), index=False)
 
 
 def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8):
     """
     Preprocess raw CSV file to create training and validation CSV file
     """
+    print("\npreprocessing csv file...")
     df = pd.read_csv(csv_path)
 
     train_df = pd.DataFrame(columns=df.columns)
@@ -118,7 +175,7 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
 
     # only use a subset of "real" to validate
     real_df = df[df["img_type"] == "real"]
-    print("real images: ", len(real_df))
+    print("real: ", len(real_df))
     n_head = int(len(real_df) * train_ratio)
     n_tail = len(real_df) - n_head
     train_df = pd.concat([train_df, real_df.head(n_head)])
@@ -128,15 +185,16 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
     df_key = df[df["img_type"] != "real"]
     train_df = pd.concat([train_df, df_key])
 
-    print("total images: ", len(df))
+    print("total: ", len(df))
     print(
-        f"--> val images: {len(val_df)} ({(round(len(val_df) / len(real_df) * 100))}%)"
+        f"    + val images (use rgb only): {len(val_df)} ({(round(len(val_df) / len(real_df) * 100))}%)"
     )
     val_df.to_csv(os.path.join(os.path.dirname(csv_path), "val.csv"), index=False)
 
+    print("    + train images before upsampling: ", len(train_df))
+
     # upsample the real images
     def upsample_real(train_df):
-        print("--> train images before upsampling: ", len(train_df))
         # 1. calculate the ratio between real and sim images
         sim_real_ratio = len(train_df[train_df["img_type"] == "sim"]) / len(
             train_df[train_df["img_type"] == "real"]
@@ -148,13 +206,14 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
         train_df = pd.concat([train_df, real_df])
         # 3. shuffle
         train_df = train_df.sample(frac=1).reset_index(drop=True)
+        print("--> train images after upsampling: ", len(train_df))
         return train_df
 
-    train_df = upsample_real(train_df)
-    print("--> train images after upsampling: ", len(train_df))
+    # train_df = upsample_real(train_df)
+
     train_df.to_csv(os.path.join(os.path.dirname(csv_path), "train.csv"), index=False)
 
 
 if __name__ == "__main__":
-    # create_csv()
+    create_csv()
     preprocess_csv()
