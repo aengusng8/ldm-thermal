@@ -27,7 +27,8 @@ model:
 data:
   target: main.DataModuleFromConfig
   params:
-    batch_size: 1 # 2
+    batch_size: 1 # 12
+    num_workers: 4 
     wrap: True
     train:
       target: ldm.data.thermal.ThermalTrain

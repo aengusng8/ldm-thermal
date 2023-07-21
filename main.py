@@ -177,6 +177,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
         self.batch_size = batch_size
         self.dataset_configs = dict()
         self.num_workers = num_workers if num_workers is not None else batch_size * 2
+        print(f"Using {self.num_workers} workers.")
         self.use_worker_init_fn = use_worker_init_fn
         if train is not None:
             self.dataset_configs["train"] = train
@@ -691,7 +692,7 @@ if __name__ == "__main__":
                     # "log_momentum": True
                 },
             },
-            "cuda_callback": {"target": "main.CUDACallback"},
+            "# 12": {"target": "main.CUDACallback"},
         }
         if version.parse(pl.__version__) >= version.parse("1.4.0"):
             default_callbacks_cfg.update({"checkpoint_callback": modelckpt_cfg})
