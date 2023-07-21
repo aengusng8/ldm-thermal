@@ -21,7 +21,7 @@ class ThermalBase(Dataset):
     def __init__(
         self,
         csv_file,
-        sim_file,
+        sim_pkl_file,
         data_root,
         size=128,
         interpolation="bicubic",
@@ -33,7 +33,15 @@ class ThermalBase(Dataset):
         """
         self.df = pd.read_csv(os.path.join(data_root, csv_file))
         print("a epoch has {} images".format(len(self.df)))
-        self.sim_df = pd.read_csv(os.path.join(data_root, sim_file))
+        # open pickle file
+        with open(os.path.join(data_root, sim_pkl_file), "rb") as f:
+            sim_sub_classes = pickle.load(f)
+
+        self.sim_dict = {}
+        for sub_class in sim_sub_classes:
+            self.sim_dict[sub_class] = pd.read_csv(
+                os.path.join(data_root, "sim_" + sub_class + ".csv")
+            )
         self.data_root = data_root
 
         self.size = size
@@ -59,11 +67,7 @@ class ThermalBase(Dataset):
         if img_type == "sim":
             sub_class = relative_path
             # randomly sample a sim by sub_class
-            relative_path = (
-                self.sim_df[self.sim_df["sub_class"] == sub_class]
-                .sample(1)["relative_path"]
-                .values[0]
-            )
+            relative_path = self.sim_dict[sub_class].sample(1)["relative_path"].values[0]
 
         img = Image.open(os.path.join(self.data_root, relative_path))
         # image = self.online_augment(image=image)["image"]
@@ -85,12 +89,16 @@ class ThermalBase(Dataset):
 
 class ThermalTrain(ThermalBase):
     def __init__(self, **kwargs):
-        super().__init__(csv_file="train.csv", sim_file="sim.csv", **kwargs)
+        super().__init__(
+            csv_file="train.csv", sim_pkl_file="sim_sub_classes.pkl", **kwargs
+        )
 
 
 class ThermalValidation(ThermalBase):
     def __init__(self, **kwargs):
-        super().__init__(csv_file="val.csv", sim_file="sim.csv", **kwargs)
+        super().__init__(
+            csv_file="val.csv", sim_pkl_file="sim_sub_classes.pkl", **kwargs
+        )
 
 
 if __name__ == "__main__":

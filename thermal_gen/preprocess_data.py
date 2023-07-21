@@ -160,7 +160,18 @@ def create_csv(
     print("    + sim (sub-classes): ", len(df[df["img_type"] == "sim"]))
     print("and sim (images): ", len(sim_df))
     df.to_csv(os.path.join(data_root, "raw.csv"), index=False)
-    sim_df.to_csv(os.path.join(data_root, "sim.csv"), index=False)
+
+    # save sim CSV by sub-classes
+    sub_classes = sim_df["sub_class"].unique()
+    for sub_class in sub_classes:
+        sub_df = sim_df[sim_df["sub_class"] == sub_class]
+        sub_df.to_csv(
+            os.path.join(data_root, f"sim_{sub_class}.csv"), index=False
+        )
+    # save sub_classes to pickle file
+    with open(os.path.join(data_root, "sim_sub_classes.pkl"), "wb") as f:
+        pickle.dump(sub_classes, f)
+    
 
 
 def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8):
@@ -220,7 +231,6 @@ def preprocess_csv(csv_path="../datasets/ThermalGen_ds/raw.csv", train_ratio=0.8
             round(n_real / len(train_df) * 100, 3),
             "%",
         )
-        print
         return train_df
 
     train_df = upsample_real(train_df, must_real_ratio=0.7)
