@@ -19,13 +19,21 @@ class ThermalBase(Dataset):
     """
 
     def __init__(
-        self, csv_file, data_root, size=128, interpolation="bicubic", flip_p=0.5
+        self,
+        csv_file,
+        sim_file,
+        data_root,
+        size=128,
+        interpolation="bicubic",
+        flip_p=0.5,
     ):
         """
         csv file format:
-        relative_file_path, img_type, class_id, class_name, ...
+        relative_path, img_type, class_id, class_name, ...
         """
         self.df = pd.read_csv(os.path.join(data_root, csv_file))
+        print("a epoch has {} images".format(len(self.df)))
+        self.sim_df = pd.read_csv(os.path.join(data_root, sim_file))
         self.data_root = data_root
 
         self.size = size
@@ -41,15 +49,23 @@ class ThermalBase(Dataset):
         return len(self.df)
 
     def __getitem__(self, i):
-        relative_file_path, img_type, class_id, class_name = self.df.iloc[i][:4]
+        relative_path, img_type, class_id, class_name = self.df.iloc[i][:4]
         example = dict(
             class_id=class_id,
             class_name=class_name,
             img_type=img_type,
         )
 
-        img = Image.open(os.path.join(self.data_root, relative_file_path))
+        if img_type == "sim":
+            sub_class = relative_path
+            # randomly sample a sim by sub_class
+            relative_path = (
+                self.sim_df[self.sim_df["sub_class"] == sub_class]
+                .sample(1)["relative_path"]
+                .values[0]
+            )
 
+        img = Image.open(os.path.join(self.data_root, relative_path))
         # image = self.online_augment(image=image)["image"]
         img = self.normal_augment(img, type=img_type)
         example["image"] = img
@@ -69,12 +85,12 @@ class ThermalBase(Dataset):
 
 class ThermalTrain(ThermalBase):
     def __init__(self, **kwargs):
-        super().__init__(csv_file="train.csv", **kwargs)
+        super().__init__(csv_file="train.csv", sim_file="sim.csv", **kwargs)
 
 
 class ThermalValidation(ThermalBase):
     def __init__(self, **kwargs):
-        super().__init__(csv_file="val.csv", **kwargs)
+        super().__init__(csv_file="val.csv", sim_file="sim.csv", **kwargs)
 
 
 if __name__ == "__main__":
