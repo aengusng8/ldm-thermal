@@ -13,15 +13,19 @@ from ldm.util import instantiate_from_config
 rescale = lambda x: (x + 1.0) / 2.0
 
 
-def custom_to_pil(x):
+def custom_to_pil(x, is_gray=True):
     x = x.detach().cpu()
     x = torch.clamp(x, -1.0, 1.0)
     x = (x + 1.0) / 2.0
     x = x.permute(1, 2, 0).numpy()
     x = (255 * x).astype(np.uint8)
-    x = Image.fromarray(x)
-    if not x.mode == "RGB":
-        x = x.convert("RGB")
+
+    if is_gray:
+        x = Image.fromarray(np.squeeze(x), mode="L")
+    else:
+        x = Image.fromarray(x)
+        if not x.mode == "RGB":
+            x = x.convert("RGB")
     return x
 
 
@@ -237,7 +241,7 @@ def get_parser():
 def load_model_from_config(config, sd):
     model = instantiate_from_config(config)
     model.load_state_dict(sd, strict=False)
-    model.cuda()
+    # model.cuda()
     model.eval()
     return model
 
