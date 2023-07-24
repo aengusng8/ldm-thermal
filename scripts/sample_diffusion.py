@@ -277,12 +277,13 @@ if __name__ == "__main__":
             idx = -2  # take a guess: path/to/logdir/checkpoints/model.ckpt
             logdir = "/".join(paths[:idx])
         ckpt = opt.resume
+        logdir = "/".join(logdir.split("/")[:-1])
     else:
         assert os.path.isdir(opt.resume), f"{opt.resume} is not a directory"
         logdir = opt.resume.rstrip("/")
         ckpt = os.path.join(logdir, "model.ckpt")
 
-    base_configs = sorted(glob.glob(os.path.join(logdir, "config.yaml")))
+    base_configs = sorted(glob.glob(os.path.join(logdir, "configs", "*.yaml")))
     opt.base = base_configs
 
     configs = [OmegaConf.load(cfg) for cfg in opt.base]
